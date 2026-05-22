@@ -33,6 +33,14 @@ let FishGuide = function(){
   {{~}}
 </div>`,
 
+    // Fish Grid Actions
+    fishGridActions: `<div class="fish-grid-actions">
+  <button type="button" class="ui button mini buttons" id="fishGuideToggleCaughtState" style="margin-top: 14px;">
+    <i class="checkmark icon"></i>
+    Mark page as caught
+  </button>
+</div>`,
+
     // Fish Information
     fishInfo: `<div class="fish-info">
   <div class="fish-name heading">Fish Name</div>
@@ -53,10 +61,11 @@ let FishGuide = function(){
 </div>`
   };
 
-  var fishGuideTmpl = `<div class="fish-guide">
+    var fishGuideTmpl = `<div class="fish-guide">
   {{#def.pageSelector}}
   <div class="fish-grid-out">
     {{#def.fishGrid}}
+    {{#def.fishGridActions}}
   </div>
   {{#def.fishInfo}}
 </div>`;
@@ -78,6 +87,7 @@ let FishGuide = function(){
       this.fishGrid$ = null;
       this.fishGridEntries$ = null;
       this.fishInfo$ = null;
+      this.toggleCaughtStateButton$ = null;
     }
 
     render(elem) {
@@ -90,6 +100,7 @@ let FishGuide = function(){
       this.fishGrid$ = $('.fish-guide .fish-grid', elem);
       this.fishGridEntries$ = $('.fish-entry', this.fishGrid$);
       this.fishInfo$ = $('.fish-guide .fish-info', elem);
+      this.toggleCaughtStateButton$ = $('#fishGuideToggleCaughtState', elem);
 
       let self = this;
 
@@ -157,12 +168,21 @@ let FishGuide = function(){
         self.fishInfo$.addClass('hidden');
       });
 
+      // Toggle button to mark/unmark all fish on the current page as caught/uncaught.
+      this.toggleCaughtStateButton$.on('click', function(e) {
+        e.stopPropagation();
+
+        let allCaught = self.areAllFishOnPageCaught();
+        self.setAllFishCaughtState(!allCaught);
+      });
+
       // Finally, initialize the menu selector by "displaying" the first page.
       // NOTE: This won't really display anything since initially, the guide
       // should be invisible. It's just easier to get the display built in
       // advance.
       this.displayFishGuidePage(1);
     }
+
 
     // Populate the fish guide grid and menu selector.
     displayFishGuidePage(page) {
@@ -271,6 +291,9 @@ let FishGuide = function(){
                                    .toggleClass('caught', ViewModel.isFishCaught(fishInfosForPage[i].id))
                                    .children('.fish-icon').addClass('sprite-icon-fish_n_tackle-' + fishInfosForPage[i].icon);
       }
+
+      // Update the button state based on the current page
+      this.updateToggleButtonState();
     }
 
     displayFishInfo(fishInfo) {
@@ -326,15 +349,84 @@ let FishGuide = function(){
 
       // Toggle the visible check mark.
       fishEntry$.toggleClass('caught');
+
+      // Update button state in case all fish on page are now caught/uncaught
+      this.updateToggleButtonState();
     }
 
     preShowHandler() {
       // Before the guide is displayed, we must refresh the current page's
       // entries, in particular, the caught state for the fish entries.
-      this.fishGridEntries$.filter(':not(.disabled)').each(function(idx, elem) {
+      this.fishGridEntries$.filter(':not(.disabled)').each((idx, elem) => {
         let fishInfo = $(elem).data('fishInfo');
         $(elem).toggleClass('caught', ViewModel.isFishCaught(fishInfo.id));
       });
+
+      // Update button state
+      this.updateToggleButtonState();
+    }
+
+    areAllFishOnPageCaught() {
+      const visibleFishEntries = this.fishGridEntries$
+        .filter(':not(.disabled)')
+        .toArray();
+
+      return visibleFishEntries.length > 0 && visibleFishEntries.every((elem) => {
+        const fishInfo = $(elem).data('fishInfo');
+
+        return fishInfo && ViewModel.isFishCaught(fishInfo.id);
+      });
+    }
+    
+    updateToggleButtonState() {
+      // Update the button text and icon based on whether all page fish are caught
+      let allCaught = this.areAllFishOnPageCaught();
+
+      if (allCaught) {
+        // All caught - button should unmark them
+        this.toggleCaughtStateButton$.html('<i class="remove icon"></i> Unmark page as caught');
+      } else {
+        // Not all caught - button should mark them
+        this.toggleCaughtStateButton$.html('<i class="checkmark icon"></i> Mark page as caught');
+      }
+    }
+
+    setAllFishCaughtState(isCaught) {
+      // Only update the fish currently displayed on the page
+      let fishInfosForPage = FISH_INFO.slice(100 * (this.currentPage - 1), (100 * (this.currentPage - 1)) + 100);
+      
+      fishInfosForPage.forEach(function(fishInfo) {
+        if (!fishInfo || fishInfo.id === undefined || fishInfo.id === null) {
+          return;
+        }
+
+        if (isCaught) {
+          ViewModel.settings.completed.add(fishInfo.id);
+        } else {
+          ViewModel.settings.completed.delete(fishInfo.id);
+        }
+
+        let fishEntry = ViewModel.fishEntries[fishInfo.id];
+
+        if (fishEntry !== undefined) {
+          fishEntry.isCaught = isCaught;
+          ViewModel.layout.updateCaughtState(fishEntry);
+        }
+      });
+
+      ViewModel.saveSettings();
+      ViewModel.updateDisplay();
+
+      this.fishGridEntries$.filter(':not(.disabled)').each((idx, elem) => {
+        let fishInfo = $(elem).data('fishInfo');
+
+        if (fishInfo) {
+          $(elem).toggleClass('caught', isCaught);
+        }
+      });
+
+      // Update the button state to reflect the new page state
+      this.updateToggleButtonState();
     }
   };
 
