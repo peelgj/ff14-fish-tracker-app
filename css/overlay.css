@@ -565,6 +565,7 @@ tr.fishtrain-fishentrydetails .sprite-icon-status-intuition.has-duration > span 
 .fish-guide .tiny.menu .page-number.item {
   /* This attempts to keep the item widths uniform */
   min-width: 3.5em;
+  justify-content: center;
 }
 .fish-guide .fish-grid-out {
   grid-area: fish-grid-out;
