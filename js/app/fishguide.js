@@ -367,6 +367,7 @@ let FishGuide = function(){
     }
 
     areAllFishOnPageCaught() {
+      // Check if all fish currently displayed on the page are caught
       const visibleFishEntries = this.fishGridEntries$
         .filter(':not(.disabled)')
         .toArray();
